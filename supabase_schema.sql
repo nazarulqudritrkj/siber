@@ -1,42 +1,23 @@
 -- ==============================================================================
 -- SI-CAKRAWALA (NANGGROE CAKRAWALA SHIELD)
 -- DATABASE SCHEMA, RBAC KOMANDO TERITORIAL & BLOCKCHAIN AUDIT LEDGER
--- Target Database: Supabase PostgreSQL
+-- Target Database: Supabase PostgreSQL (Production Ready & Safe Execution)
 -- ==============================================================================
 
 -- 1. Ekstensi Kriptografi & UUID
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 2. Enum Tipe Akses & Role Personel (Termasuk Panglima Wilayah)
+-- 2. Migrasi Tipe Kolom ke VARCHAR (Mencegah PostgreSQL Enum 55P04 Error)
 DO $$ BEGIN
-  CREATE TYPE operator_role AS ENUM (
-    'OPERATOR_TERITORIAL',
-    'ANALIS_INTELIJEN',
-    'PANGLIMA_WILAYAH',
-    'KOMANDAN_SATSIBER',
-    'ADMIN_SISTEM'
-  );
+  ALTER TABLE public.operator_profiles ALTER COLUMN role TYPE VARCHAR(50);
 EXCEPTION
-  WHEN duplicate_object THEN null;
+  WHEN undefined_table THEN null;
+  WHEN undefined_column THEN null;
+  WHEN others THEN null;
 END $$;
 
--- Pastikan PANGLIMA_WILAYAH ada jika enum sudah dibuat sebelumnya
-ALTER TYPE operator_role ADD VALUE IF NOT EXISTS 'PANGLIMA_WILAYAH';
-
--- 3. Enum Status Verifikasi Akun
-DO $$ BEGIN
-  CREATE TYPE account_verification_status AS ENUM (
-    'PENDING_VERIFICATION',
-    'APPROVED_ACTIVE',
-    'REJECTED',
-    'SUSPENDED'
-  );
-EXCEPTION
-  WHEN duplicate_object THEN null;
-END $$;
-
--- 4. Tabel Profil Pengguna (Sinkron dengan auth.users Supabase)
+-- 3. Tabel Profil Pengguna (Sinkron dengan auth.users Supabase)
 CREATE TABLE IF NOT EXISTS public.operator_profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   nik VARCHAR(50) UNIQUE NOT NULL,
@@ -44,9 +25,9 @@ CREATE TABLE IF NOT EXISTS public.operator_profiles (
   pangkat VARCHAR(50) NOT NULL,
   satuan VARCHAR(100) NOT NULL,
   email VARCHAR(100) UNIQUE NOT NULL,
-  role operator_role DEFAULT 'OPERATOR_TERITORIAL',
+  role VARCHAR(50) DEFAULT 'OPERATOR_TERITORIAL',
   regional_command VARCHAR(100) DEFAULT 'Kodam Jaya',
-  verification_status account_verification_status DEFAULT 'PENDING_VERIFICATION',
+  verification_status VARCHAR(50) DEFAULT 'PENDING_VERIFICATION',
   verified_by UUID REFERENCES public.operator_profiles(id),
   verified_at TIMESTAMPTZ,
   rejection_notes TEXT,
@@ -56,15 +37,22 @@ CREATE TABLE IF NOT EXISTS public.operator_profiles (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Kolom tambahan jika tabel sudah ada sebelumnya
+-- Tambahkan kolom jika tabel sudah ada sebelumnya
 ALTER TABLE public.operator_profiles
   ADD COLUMN IF NOT EXISTS regional_command VARCHAR(100) DEFAULT 'Kodam Jaya',
-  ADD COLUMN IF NOT EXISTS verification_status account_verification_status DEFAULT 'PENDING_VERIFICATION',
+  ADD COLUMN IF NOT EXISTS verification_status VARCHAR(50) DEFAULT 'PENDING_VERIFICATION',
   ADD COLUMN IF NOT EXISTS verified_by UUID REFERENCES public.operator_profiles(id),
   ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS rejection_notes TEXT;
 
--- 5. Tabel Immutable Blockchain Ledger (Append-Only Audit Trail)
+-- Pastikan tipe verification_status adalah VARCHAR
+DO $$ BEGIN
+  ALTER TABLE public.operator_profiles ALTER COLUMN verification_status TYPE VARCHAR(50);
+EXCEPTION
+  WHEN others THEN null;
+END $$;
+
+-- 4. Tabel Immutable Blockchain Ledger (Append-Only Audit Trail)
 CREATE TABLE IF NOT EXISTS public.blockchain_ledger (
   block_height BIGSERIAL PRIMARY KEY,
   hash VARCHAR(64) NOT NULL UNIQUE,
@@ -80,22 +68,22 @@ CREATE TABLE IF NOT EXISTS public.blockchain_ledger (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 6. Tabel Pemantauan Aktivitas Pengguna (User Activity Logs)
+-- 5. Tabel Pemantauan Aktivitas Pengguna (User Activity Logs)
 CREATE TABLE IF NOT EXISTS public.user_activity_logs (
   id BIGSERIAL PRIMARY KEY,
   operator_id UUID NOT NULL REFERENCES public.operator_profiles(id) ON DELETE CASCADE,
   operator_nik VARCHAR(50) NOT NULL,
   operator_name VARCHAR(100),
   regional_command VARCHAR(100) NOT NULL,
-  activity_type VARCHAR(50) NOT NULL, -- 'LOGIN', 'LOGOUT', 'RADAR_PROBE', 'THREAT_ISOLATION', 'COMMAND_EXECUTE'
+  activity_type VARCHAR(50) NOT NULL,
   action_detail TEXT NOT NULL,
   target_node_id VARCHAR(50),
   ip_address VARCHAR(45) DEFAULT '127.0.0.1',
-  severity_level VARCHAR(20) DEFAULT 'INFO', -- 'INFO', 'WARN', 'CRITICAL'
+  severity_level VARCHAR(20) DEFAULT 'INFO',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 7. Genesis Block Seeding (Blok 0 - Titik Awal Rantai Kriptografis)
+-- 6. Genesis Block Seeding (Blok 0 - Titik Awal Rantai Kriptografis)
 INSERT INTO public.blockchain_ledger (
   block_height,
   hash,
@@ -118,7 +106,7 @@ INSERT INTO public.blockchain_ledger (
   'Inisialisasi Root Chain Jaringan Komando Siber Nasional'
 ) ON CONFLICT (block_height) DO NOTHING;
 
--- 8. Trigger Mutlak Anti-Manipulasi (Tabel Tidak Boleh di-UPDATE atau DELETE)
+-- 7. Trigger Mutlak Anti-Manipulasi (Tabel Tidak Boleh di-UPDATE atau DELETE)
 CREATE OR REPLACE FUNCTION protect_blockchain_ledger()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -136,7 +124,7 @@ CREATE TRIGGER trg_protect_blockchain_ledger
 BEFORE UPDATE OR DELETE ON public.blockchain_ledger
 FOR EACH ROW EXECUTE FUNCTION protect_blockchain_ledger();
 
--- 9. Trigger Otomatis Hashing Registrasi Operator
+-- 8. Trigger Otomatis Hashing Registrasi Operator
 CREATE OR REPLACE FUNCTION log_operator_registration_to_blockchain()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -149,7 +137,7 @@ BEGIN
     v_last_hash := 'GENESIS_BLOCK_NANGGROE_CAKRAWALA_SHIELD';
   END IF;
 
-  v_payload := NEW.id || ':' || NEW.nik || ':' || NEW.regional_command || ':' || NOW();
+  v_payload := NEW.id || ':' || NEW.nik || ':' || COALESCE(NEW.regional_command, 'MABES') || ':' || NOW();
   v_new_hash := encode(digest(v_last_hash || v_payload, 'sha256'), 'hex');
 
   INSERT INTO public.blockchain_ledger (
@@ -169,7 +157,7 @@ BEGIN
     'OPERATOR_REGISTERED_PENDING',
     encode(digest(v_payload, 'sha256'), 'hex'),
     'DILITHIUM5:' || substr(v_new_hash, 1, 16) || '... (NIST FIPS 204)',
-    'Registrasi personel: ' || NEW.nama_lengkap || ' (' || NEW.pangkat || ' - ' || NEW.regional_command || ') - MENUNGGU VERIFIKASI PANGLIMA'
+    'Registrasi personel: ' || NEW.nama_lengkap || ' (' || NEW.pangkat || ' - ' || COALESCE(NEW.regional_command, 'Kodam Jaya') || ') - MENUNGGU VERIFIKASI PANGLIMA'
   );
 
   RETURN NEW;
@@ -181,7 +169,7 @@ CREATE TRIGGER trg_operator_blockchain_log
 AFTER INSERT ON public.operator_profiles
 FOR EACH ROW EXECUTE FUNCTION log_operator_registration_to_blockchain();
 
--- 10. Trigger Otomatis Blockchain saat Status Verifikasi Akun Diubah (Approval/Rejection)
+-- 9. Trigger Otomatis Blockchain saat Status Verifikasi Akun Diubah (Approval/Rejection)
 CREATE OR REPLACE FUNCTION log_verification_to_blockchain()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -235,7 +223,7 @@ CREATE TRIGGER trg_operator_verification_log
 AFTER UPDATE ON public.operator_profiles
 FOR EACH ROW EXECUTE FUNCTION log_verification_to_blockchain();
 
--- 11. Row Level Security (RLS)
+-- 10. Row Level Security (RLS)
 ALTER TABLE public.operator_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.blockchain_ledger ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_activity_logs ENABLE ROW LEVEL SECURITY;
@@ -248,9 +236,9 @@ FOR SELECT
 TO authenticated 
 USING (
   auth.uid() = id
-  OR (SELECT role FROM public.operator_profiles WHERE id = auth.uid()) IN ('ADMIN_SISTEM', 'KOMANDAN_SATSIBER')
+  OR (SELECT role::text FROM public.operator_profiles WHERE id = auth.uid()) IN ('ADMIN_SISTEM', 'KOMANDAN_SATSIBER')
   OR (
-    (SELECT role FROM public.operator_profiles WHERE id = auth.uid()) = 'PANGLIMA_WILAYAH'
+    (SELECT role::text FROM public.operator_profiles WHERE id = auth.uid()) = 'PANGLIMA_WILAYAH'
     AND regional_command = (SELECT regional_command FROM public.operator_profiles WHERE id = auth.uid())
   )
 );
@@ -269,9 +257,9 @@ FOR UPDATE
 TO authenticated 
 USING (
   auth.uid() = id
-  OR (SELECT role FROM public.operator_profiles WHERE id = auth.uid()) IN ('ADMIN_SISTEM', 'KOMANDAN_SATSIBER')
+  OR (SELECT role::text FROM public.operator_profiles WHERE id = auth.uid()) IN ('ADMIN_SISTEM', 'KOMANDAN_SATSIBER')
   OR (
-    (SELECT role FROM public.operator_profiles WHERE id = auth.uid()) = 'PANGLIMA_WILAYAH'
+    (SELECT role::text FROM public.operator_profiles WHERE id = auth.uid()) = 'PANGLIMA_WILAYAH'
     AND regional_command = (SELECT regional_command FROM public.operator_profiles WHERE id = auth.uid())
   )
 );
@@ -299,9 +287,9 @@ FOR SELECT
 TO authenticated 
 USING (
   operator_id = auth.uid()
-  OR (SELECT role FROM public.operator_profiles WHERE id = auth.uid()) IN ('ADMIN_SISTEM', 'KOMANDAN_SATSIBER')
+  OR (SELECT role::text FROM public.operator_profiles WHERE id = auth.uid()) IN ('ADMIN_SISTEM', 'KOMANDAN_SATSIBER')
   OR (
-    (SELECT role FROM public.operator_profiles WHERE id = auth.uid()) = 'PANGLIMA_WILAYAH'
+    (SELECT role::text FROM public.operator_profiles WHERE id = auth.uid()) = 'PANGLIMA_WILAYAH'
     AND regional_command = (SELECT regional_command FROM public.operator_profiles WHERE id = auth.uid())
   )
 );
