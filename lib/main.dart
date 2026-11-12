@@ -14,6 +14,8 @@ import 'views/ai_intelligence_view.dart';
 import 'views/blockchain_view.dart';
 import 'views/telemetry_view.dart';
 import 'views/field_operations_view.dart';
+import 'views/regional_admin_view.dart';
+import 'views/user_activity_monitor_view.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -183,6 +185,10 @@ class _CommandCenterScreenState extends State<CommandCenterScreen> {
         return TelemetryView(controller: _controller);
       case 5:
         return FieldOperationsView(controller: _controller);
+      case 6:
+        return const RegionalAdminView();
+      case 7:
+        return const UserActivityMonitorView();
       default:
         return DashboardView(controller: _controller);
     }

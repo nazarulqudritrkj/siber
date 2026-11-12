@@ -21,6 +21,8 @@ class TacticalNavBar extends StatelessWidget {
       (Icons.lock_clock_rounded, TacticalStrings.blockchain),
       (Icons.show_chart_rounded, TacticalStrings.telemetri),
       (Icons.shield_rounded, TacticalStrings.operasi),
+      (Icons.admin_panel_settings_rounded, 'VERIFIKASI WILAYAH'),
+      (Icons.remove_red_eye_rounded, 'LOG AKTIVITAS'),
     ];
 
     return Container(

@@ -32,6 +32,25 @@ class _RegisterViewState extends State<RegisterView>
   bool _agreed = false;
   int _step = 0; // 0=personal, 1=credentials, 2=done
 
+  String _selectedKodam = 'Kodam Jaya';
+  static const List<String> _kodamList = [
+    'Kodam Jaya',
+    'Kodam I/Bukit Barisan',
+    'Kodam II/Sriwijaya',
+    'Kodam III/Siliwangi',
+    'Kodam IV/Diponegoro',
+    'Kodam V/Brawijaya',
+    'Kodam VI/Mulawarman',
+    'Kodam IX/Udayana',
+    'Kodam XII/Tanjungpura',
+    'Kodam XIII/Merdeka',
+    'Kodam XIV/Hasanuddin',
+    'Kodam XVI/Pattimura',
+    'Kodam XVII/Cenderawasih',
+    'Kodam XVIII/Kasuari',
+    'Kodam Iskandar Muda',
+  ];
+
   late AnimationController _bgCtrl;
   late AnimationController _cardCtrl;
   late Animation<double> _cardFade;
@@ -83,6 +102,7 @@ class _RegisterViewState extends State<RegisterView>
           nik: _nikCtrl.text.trim(),
           pangkat: _pangkatCtrl.text.trim(),
           satuan: _satuanCtrl.text.trim(),
+          regionalCommand: _selectedKodam,
         );
 
         if (!mounted) return;
@@ -287,6 +307,28 @@ class _RegisterViewState extends State<RegisterView>
       _field('Pangkat', Icons.military_tech_outlined, _pangkatCtrl, 'cth: Kolonel, Mayor, Kapten...'),
       const SizedBox(height: 14),
       _field('Satuan / Unit', Icons.account_balance_outlined, _satuanCtrl, 'cth: SATSIBER TNI AD'),
+      const SizedBox(height: 14),
+      // Komando Daerah Militer (Kodam Wilayah)
+      DropdownButtonFormField<String>(
+        initialValue: _selectedKodam,
+        style: GoogleFonts.exo2(fontSize: 14, color: AppColors.textPrimary),
+        decoration: InputDecoration(
+          labelText: 'Komando Daerah Militer (Kodam / Wilayah)',
+          prefixIcon: const Icon(Icons.shield_outlined, color: AppColors.tniGreenAccent, size: 20),
+          filled: true,
+          fillColor: Colors.white.withValues(alpha: 0.9),
+        ),
+        dropdownColor: Colors.white,
+        items: _kodamList.map((k) {
+          return DropdownMenuItem(
+            value: k,
+            child: Text(k, style: GoogleFonts.exo2(fontSize: 13, color: AppColors.textPrimary)),
+          );
+        }).toList(),
+        onChanged: (val) {
+          if (val != null) setState(() => _selectedKodam = val);
+        },
+      ),
     ];
   }
 

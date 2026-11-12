@@ -1,5 +1,3 @@
-import 'dart:convert';
-import 'package:crypto/crypto.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
 import '../../models/blockchain_block.dart';
@@ -11,8 +9,14 @@ class OperatorProfile {
   final String pangkat;
   final String satuan;
   final String email;
-  final String role;
+  final String role; // 'OPERATOR_TERITORIAL', 'ANALIS_INTELIJEN', 'PANGLIMA_WILAYAH', 'KOMANDAN_SATSIBER', 'ADMIN_SISTEM'
+  final String regionalCommand; // e.g. 'Kodam Jaya', 'Kodam VI/Mulawarman'
+  final String verificationStatus; // 'PENDING_VERIFICATION', 'APPROVED_ACTIVE', 'REJECTED', 'SUSPENDED'
+  final String? verifiedBy;
+  final String? verifiedAt;
+  final String? rejectionNotes;
   final int clearanceLevel;
+  final bool isActive;
 
   const OperatorProfile({
     required this.id,
@@ -22,8 +26,20 @@ class OperatorProfile {
     required this.satuan,
     required this.email,
     required this.role,
+    this.regionalCommand = 'Kodam Jaya',
+    this.verificationStatus = 'PENDING_VERIFICATION',
+    this.verifiedBy,
+    this.verifiedAt,
+    this.rejectionNotes,
     required this.clearanceLevel,
+    this.isActive = true,
   });
+
+  bool get isApproved => verificationStatus == 'APPROVED_ACTIVE';
+  bool get isPending => verificationStatus == 'PENDING_VERIFICATION';
+  bool get isRejected => verificationStatus == 'REJECTED';
+  bool get isRegionalGeneral => role == 'PANGLIMA_WILAYAH';
+  bool get isSystemAdmin => role == 'ADMIN_SISTEM' || role == 'KOMANDAN_SATSIBER';
 
   factory OperatorProfile.fromJson(Map<String, dynamic> json) {
     return OperatorProfile(
@@ -34,7 +50,57 @@ class OperatorProfile {
       satuan: json['satuan'] as String? ?? '',
       email: json['email'] as String? ?? '',
       role: json['role'] as String? ?? 'OPERATOR_TERITORIAL',
+      regionalCommand: json['regional_command'] as String? ?? 'Kodam Jaya',
+      verificationStatus: json['verification_status'] as String? ?? 'PENDING_VERIFICATION',
+      verifiedBy: json['verified_by'] as String?,
+      verifiedAt: json['verified_at'] as String?,
+      rejectionNotes: json['rejection_notes'] as String?,
       clearanceLevel: (json['clearance_level'] as num?)?.toInt() ?? 1,
+      isActive: json['is_active'] as bool? ?? true,
+    );
+  }
+}
+
+class UserActivityLog {
+  final int id;
+  final String operatorId;
+  final String operatorNik;
+  final String? operatorName;
+  final String regionalCommand;
+  final String activityType;
+  final String actionDetail;
+  final String? targetNodeId;
+  final String ipAddress;
+  final String severityLevel;
+  final String createdAt;
+
+  const UserActivityLog({
+    required this.id,
+    required this.operatorId,
+    required this.operatorNik,
+    this.operatorName,
+    required this.regionalCommand,
+    required this.activityType,
+    required this.actionDetail,
+    this.targetNodeId,
+    required this.ipAddress,
+    required this.severityLevel,
+    required this.createdAt,
+  });
+
+  factory UserActivityLog.fromJson(Map<String, dynamic> json) {
+    return UserActivityLog(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      operatorId: json['operator_id'] as String? ?? '',
+      operatorNik: json['operator_nik'] as String? ?? '',
+      operatorName: json['operator_name'] as String?,
+      regionalCommand: json['regional_command'] as String? ?? '',
+      activityType: json['activity_type'] as String? ?? 'ACTIVITY',
+      actionDetail: json['action_detail'] as String? ?? '',
+      targetNodeId: json['target_node_id'] as String?,
+      ipAddress: json['ip_address'] as String? ?? '127.0.0.1',
+      severityLevel: json['severity_level'] as String? ?? 'INFO',
+      createdAt: json['created_at'] != null ? json['created_at'].toString().substring(0, 19) : '',
     );
   }
 }
@@ -46,13 +112,13 @@ class AuthBlockchainService {
 
   SupabaseClient? get _client => SupabaseConfig.client;
 
-  /// Status apakah user sedang terautentikasi
-  bool get isAuthenticated => _client?.auth.currentUser != null;
+  /// Profil pengguna yang sedang login saat ini
+  OperatorProfile? currentProfile;
 
-  /// User ID saat ini
+  bool get isAuthenticated => _client?.auth.currentUser != null;
   String? get currentUserId => _client?.auth.currentUser?.id;
 
-  /// Registrasi personel taktis baru ke Supabase Auth + Profiling + Trigger Blockchain Ledger
+  /// Registrasi personel taktis baru
   Future<Map<String, dynamic>> registerOperator({
     required String email,
     required String password,
@@ -60,17 +126,17 @@ class AuthBlockchainService {
     required String nik,
     required String pangkat,
     required String satuan,
+    String regionalCommand = 'Kodam Jaya',
   }) async {
     final client = _client;
     if (client == null) {
       return {
         'success': false,
-        'message': 'Supabase belum terinisialisasi. Periksa koneksi atau URL Supabase.',
+        'message': 'Supabase belum terinisialisasi. Periksa koneksi.',
       };
     }
 
     try {
-      // 1. Sign up akun Supabase Auth
       final authResponse = await client.auth.signUp(
         email: email,
         password: password,
@@ -84,7 +150,6 @@ class AuthBlockchainService {
         };
       }
 
-      // 2. Simpan profil militer operator
       await client.from('operator_profiles').insert({
         'id': user.id,
         'nik': nik,
@@ -93,15 +158,14 @@ class AuthBlockchainService {
         'satuan': satuan,
         'email': email,
         'role': 'OPERATOR_TERITORIAL',
+        'regional_command': regionalCommand,
+        'verification_status': 'PENDING_VERIFICATION',
         'clearance_level': 1,
       });
 
-      // Catatan: Trigger database 'trg_operator_blockchain_log' secara otomatis
-      // akan mencatat blok baru di tabel 'blockchain_ledger' dengan tanda tangan Dilithium!
-
       return {
         'success': true,
-        'message': 'Personel berhasil didaftarkan dan tervalidasi ke dalam Blockchain Ledger.',
+        'message': 'Personel berhasil didaftarkan dan menunggu verifikasi Panglima Wilayah.',
         'userId': user.id,
       };
     } on AuthException catch (e) {
@@ -118,16 +182,12 @@ class AuthBlockchainService {
   }) async {
     final client = _client;
     if (client == null) {
-      return {
-        'success': false,
-        'message': 'Supabase belum terhubung.',
-      };
+      return {'success': false, 'message': 'Supabase belum terhubung.'};
     }
 
     try {
       String emailToUse = identifier.trim();
 
-      // Jika user memasukkan NIK, cari email terkait di database
       if (!identifier.contains('@')) {
         final profileRes = await client
             .from('operator_profiles')
@@ -138,12 +198,10 @@ class AuthBlockchainService {
         if (profileRes != null && profileRes['email'] != null) {
           emailToUse = profileRes['email'] as String;
         } else {
-          // Fallback coba format email sintetis jika ada
           emailToUse = '${identifier.trim().toLowerCase().replaceAll(" ", "")}@siber.tni.mil.id';
         }
       }
 
-      // Sign In dengan Password
       final response = await client.auth.signInWithPassword(
         email: emailToUse,
         password: password,
@@ -153,8 +211,42 @@ class AuthBlockchainService {
         return {'success': false, 'message': 'Kredensial tidak valid.'};
       }
 
-      // Ambil detail profil
       final profile = await getProfile(response.user!.id);
+      currentProfile = profile;
+
+      if (profile != null) {
+        // Cek status verifikasi (kecuali jika role admin sistem)
+        if (!profile.isSystemAdmin) {
+          if (profile.verificationStatus == 'PENDING_VERIFICATION') {
+            await client.auth.signOut();
+            return {
+              'success': false,
+              'isPending': true,
+              'message': 'AKSES DITAHAN: Akun Anda belum diverifikasi oleh Jenderal/Panglima ${profile.regionalCommand}. Hubungi Perwira Teritorial.',
+            };
+          } else if (profile.verificationStatus == 'REJECTED') {
+            await client.auth.signOut();
+            return {
+              'success': false,
+              'isRejected': true,
+              'message': 'AKSES DITOLAK: Pendaftaran Anda ditolak. Alasan: ${profile.rejectionNotes ?? "Kredensial personel tidak valid"}.',
+            };
+          } else if (profile.verificationStatus == 'SUSPENDED') {
+            await client.auth.signOut();
+            return {
+              'success': false,
+              'message': 'AKSES DIBEKUKAN: Akun Anda sedang dinonaktifkan oleh Komando Wilayah.',
+            };
+          }
+        }
+
+        // Catat aktivitas login berhasil
+        await logUserActivity(
+          activityType: 'LOGIN',
+          detail: 'Personel berhasil masuk sistem Pusat Komando (Clearance Level: ${profile.clearanceLevel})',
+          severity: 'INFO',
+        );
+      }
 
       return {
         'success': true,
@@ -169,7 +261,7 @@ class AuthBlockchainService {
     }
   }
 
-  /// Mengambil profil operator saat ini
+  /// Mengambil profil operator
   Future<OperatorProfile?> getProfile(String userId) async {
     final client = _client;
     if (client == null) return null;
@@ -186,6 +278,159 @@ class AuthBlockchainService {
       }
     } catch (_) {}
     return null;
+  }
+
+  /// Mengambil daftar operator yang menunggu persetujuan (Pending Verification)
+  Future<List<OperatorProfile>> fetchPendingOperators({String? regionalCommand}) async {
+    final client = _client;
+    if (client == null) return [];
+
+    try {
+      PostgrestFilterBuilder query = client
+          .from('operator_profiles')
+          .select()
+          .eq('verification_status', 'PENDING_VERIFICATION');
+
+      if (regionalCommand != null && regionalCommand.isNotEmpty && regionalCommand != 'SEMUA_WILAYAH') {
+        query = query.eq('regional_command', regionalCommand);
+      }
+
+      final res = await query.order('created_at', ascending: false);
+      final List<dynamic> rows = res as List<dynamic>;
+      return rows.map((r) => OperatorProfile.fromJson(r)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Mengambil semua operator untuk monitoring wilayah
+  Future<List<OperatorProfile>> fetchAllOperators({String? regionalCommand}) async {
+    final client = _client;
+    if (client == null) return [];
+
+    try {
+      PostgrestFilterBuilder query = client
+          .from('operator_profiles')
+          .select();
+
+      if (regionalCommand != null && regionalCommand.isNotEmpty && regionalCommand != 'SEMUA_WILAYAH') {
+        query = query.eq('regional_command', regionalCommand);
+      }
+
+      final res = await query.order('created_at', ascending: false);
+      final List<dynamic> rows = res as List<dynamic>;
+      return rows.map((r) => OperatorProfile.fromJson(r)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Setujui (Approve) Akun Personel oleh Jenderal Wilayah / Admin
+  Future<bool> approveOperator({
+    required String operatorId,
+    required int clearanceLevel,
+    required String verifiedByUserId,
+  }) async {
+    final client = _client;
+    if (client == null) return false;
+
+    try {
+      await client.from('operator_profiles').update({
+        'verification_status': 'APPROVED_ACTIVE',
+        'clearance_level': clearanceLevel,
+        'verified_by': verifiedByUserId,
+        'verified_at': DateTime.now().toIso8601String(),
+        'rejection_notes': null,
+      }).eq('id', operatorId);
+
+      // Catat log aktivitas verifikasi
+      await logUserActivity(
+        activityType: 'OPERATOR_APPROVED',
+        detail: 'Persetujuan personel ID: $operatorId disahkan dengan Clearance Level $clearanceLevel.',
+        severity: 'INFO',
+      );
+
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Tolak (Reject) Akun Personel oleh Jenderal Wilayah / Admin
+  Future<bool> rejectOperator({
+    required String operatorId,
+    required String reason,
+    required String verifiedByUserId,
+  }) async {
+    final client = _client;
+    if (client == null) return false;
+
+    try {
+      await client.from('operator_profiles').update({
+        'verification_status': 'REJECTED',
+        'verified_by': verifiedByUserId,
+        'verified_at': DateTime.now().toIso8601String(),
+        'rejection_notes': reason,
+      }).eq('id', operatorId);
+
+      await logUserActivity(
+        activityType: 'OPERATOR_REJECTED',
+        detail: 'Penolakan pendaftaran personel ID: $operatorId. Alasan: $reason',
+        severity: 'WARN',
+      );
+
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Catat log aktivitas pengguna interaktif
+  Future<void> logUserActivity({
+    required String activityType,
+    required String detail,
+    String? targetNodeId,
+    String severity = 'INFO',
+  }) async {
+    final client = _client;
+    final user = client?.auth.currentUser;
+    if (client == null || user == null) return;
+
+    try {
+      final profile = currentProfile ?? await getProfile(user.id);
+      await client.from('user_activity_logs').insert({
+        'operator_id': user.id,
+        'operator_nik': profile?.nik ?? user.email ?? 'ANON',
+        'operator_name': profile?.namaLengkap ?? 'Operator Taktis',
+        'regional_command': profile?.regionalCommand ?? 'Kodam Jaya',
+        'activity_type': activityType,
+        'action_detail': detail,
+        'target_node_id': targetNodeId,
+        'severity_level': severity,
+      });
+    } catch (_) {}
+  }
+
+  /// Mengambil riwayat aktivitas pengguna untuk pengawasan Jenderal / Admin
+  Future<List<UserActivityLog>> fetchUserActivityLogs({String? regionalCommand}) async {
+    final client = _client;
+    if (client == null) return [];
+
+    try {
+      PostgrestFilterBuilder query = client
+          .from('user_activity_logs')
+          .select();
+
+      if (regionalCommand != null && regionalCommand.isNotEmpty && regionalCommand != 'SEMUA_WILAYAH') {
+        query = query.eq('regional_command', regionalCommand);
+      }
+
+      final res = await query.order('created_at', ascending: false).limit(100);
+      final List<dynamic> rows = res as List<dynamic>;
+      return rows.map((r) => UserActivityLog.fromJson(r)).toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   /// Mengambil riwayat Blockchain Ledger dari Supabase
@@ -224,72 +469,23 @@ class AuthBlockchainService {
     }
   }
 
-  /// Verifikasi Integritas Rantai Blok Kriptografis (Tamper-Proof Verification)
-  /// Memastikan prev_hash blok ke-N sama persis dengan hash blok ke-(N-1)
+  /// Verifikasi Integritas Rantai Blok
   bool verifyLedgerChainIntegrity(List<BlockchainBlock> blocks) {
     if (blocks.isEmpty) return true;
-
     for (int i = 1; i < blocks.length; i++) {
-      final prevBlock = blocks[i - 1];
-      final currentBlock = blocks[i];
-
-      if (currentBlock.prevHash != prevBlock.hash) {
-        // Terjadi manipulasi data pada rantai blok!
-        return false;
-      }
+      if (blocks[i].prevHash != blocks[i - 1].hash) return false;
     }
     return true;
-  }
-
-  /// Catat Aksi Taktis Baru ke Ledger Blockchain
-  Future<bool> appendTacticalLog({
-    required String actionType,
-    required String notes,
-  }) async {
-    final client = _client;
-    final uid = currentUserId;
-    if (client == null || uid == null) return false;
-
-    try {
-      // Ambil blok mutakhir
-      final lastBlocks = await client
-          .from('blockchain_ledger')
-          .select('hash')
-          .order('block_height', ascending: false)
-          .limit(1);
-
-      String prevHash = 'GENESIS_BLOCK_NANGGROE_CAKRAWALA_SHIELD';
-      if (lastBlocks.isNotEmpty) {
-        prevHash = lastBlocks.first['hash'] as String;
-      }
-
-      final payload = '$uid:$actionType:$notes:${DateTime.now().toIso8601String()}';
-      final digestBytes = sha256.convert(utf8.encode(prevHash + payload));
-      final newHash = digestBytes.toString();
-      final merkle = '0x${sha256.convert(utf8.encode(payload))}';
-
-      await client.from('blockchain_ledger').insert({
-        'hash': newHash,
-        'prev_hash': prevHash,
-        'merkle_root': merkle,
-        'operator_id': uid,
-        'action_type': actionType,
-        'payload_digest': sha256.convert(utf8.encode(payload)).toString(),
-        'dilithium_signature': 'DILITHIUM5:${newHash.substring(0, 16)}... (NIST FIPS 204)',
-        'tactical_notes': notes,
-      });
-
-      return true;
-    } catch (_) {
-      return false;
-    }
   }
 
   /// Sign Out
   Future<void> signOut() async {
     try {
+      if (currentUserId != null) {
+        await logUserActivity(activityType: 'LOGOUT', detail: 'Operator keluar dari sistem.', severity: 'INFO');
+      }
+      currentProfile = null;
       await _client?.auth.signOut();
     } catch (_) {}
   }
 }
-
