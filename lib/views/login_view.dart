@@ -5,6 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../core/theme/app_colors.dart';
 import '../main.dart' show CommandCenterScreen;
 import '../core/constants/app_constants.dart';
+import '../core/config/supabase_config.dart';
+import '../core/services/auth_blockchain_service.dart';
 
 class LoginView extends StatefulWidget {
   const LoginView({super.key});
@@ -75,14 +77,62 @@ class _LoginViewState extends State<LoginView>
   Future<void> _doLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final inputUser = _nikController.text.trim().replaceAll(' ', '').toUpperCase();
+    final rawUser = _nikController.text.trim();
+    final inputUser = rawUser.replaceAll(' ', '').toUpperCase();
     final inputPass = _passController.text.trim();
 
     setState(() => _loading = true);
-    await Future.delayed(const Duration(milliseconds: 1000));
+
+    // Coba otentikasi via Supabase Auth jika service aktif
+    if (SupabaseConfig.isConfigured) {
+      final res = await AuthBlockchainService().loginOperator(
+        identifier: rawUser,
+        password: inputPass,
+      );
+
+      if (res['success'] == true) {
+        if (!mounted) return;
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.verified_user_rounded, color: Colors.white, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'AKSES KOMANDO DITERIMA: Otentikasi Supabase & Blockchain Validated!',
+                    style: GoogleFonts.exo2(fontWeight: FontWeight.w700, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: AppColors.tniGreenAccent,
+            duration: const Duration(milliseconds: 1400),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+
+        await Future.delayed(const Duration(milliseconds: 300));
+        if (!mounted) return;
+
+        Navigator.pushReplacement(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (context, anim, secAnim) => const CommandCenterScreen(),
+            transitionsBuilder: (context, anim, secAnim, child) => FadeTransition(opacity: anim, child: child),
+            transitionDuration: const Duration(milliseconds: 600),
+          ),
+        );
+        return;
+      }
+    }
+
+    await Future.delayed(const Duration(milliseconds: 800));
     if (!mounted) return;
 
-    // Check dummy credentials
+    // Check dummy credentials (Fallback demo)
     final isAuthorized = (inputUser == 'NAZARULQUDRI' && inputPass == 'NAZARULQUDRI') ||
         (inputUser == 'ADMIN' && inputPass == 'ADMIN123');
 

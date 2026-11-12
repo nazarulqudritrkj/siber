@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/app_colors.dart';
+import 'core/config/supabase_config.dart';
 import 'views/landing_page.dart';
 import 'core/constants/app_constants.dart';
 import 'state/command_center_controller.dart';
@@ -14,8 +15,9 @@ import 'views/blockchain_view.dart';
 import 'views/telemetry_view.dart';
 import 'views/field_operations_view.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await SupabaseConfig.initialize();
   runApp(const SiCakrawalaApp());
 }
 

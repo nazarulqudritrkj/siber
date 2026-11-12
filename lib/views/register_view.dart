@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/theme/app_colors.dart';
 import '../core/constants/app_constants.dart';
+import '../core/config/supabase_config.dart';
+import '../core/services/auth_blockchain_service.dart';
 
 class RegisterView extends StatefulWidget {
   const RegisterView({super.key});
@@ -70,6 +72,35 @@ class _RegisterViewState extends State<RegisterView>
         return;
       }
       setState(() => _loading = true);
+
+      // Integrasi Supabase jika aktif terhubung
+      if (SupabaseConfig.isConfigured) {
+        final res = await AuthBlockchainService().registerOperator(
+          email: _emailCtrl.text.trim(),
+          password: _passCtrl.text.trim(),
+          namaLengkap: _namaCtrl.text.trim(),
+          nik: _nikCtrl.text.trim(),
+          pangkat: _pangkatCtrl.text.trim(),
+          satuan: _satuanCtrl.text.trim(),
+        );
+
+        if (!mounted) return;
+        setState(() => _loading = false);
+
+        if (res['success'] == true) {
+          setState(() => _step = 2);
+          return;
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(res['message']?.toString() ?? 'Gagal mendaftarkan operator.',
+                style: GoogleFonts.exo2()),
+            backgroundColor: AppColors.merahIndonesia,
+          ));
+          return;
+        }
+      }
+
+      // Fallback demo/offline
       await Future.delayed(const Duration(seconds: 2));
       if (mounted) setState(() { _loading = false; _step = 2; });
     }

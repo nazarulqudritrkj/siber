@@ -42,8 +42,7 @@ jobs:
 
       - name: Build Flutter Web Release
         run: |
-          flutter build web --release --base-href "/"
-          echo "cakrawala-siber.id" > build/web/CNAME
+          flutter build web --release --base-href "/siber/"
           cp build/web/index.html build/web/404.html
 
       - name: Setup GitHub Pages
