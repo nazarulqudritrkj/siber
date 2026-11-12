@@ -47,10 +47,54 @@ class _LoginViewState extends State<LoginView>
     super.dispose();
   }
 
-  void _fillDummyCredentials() {
+  // ── Dummy accounts untuk juri/reviewer ─────────────────────────────────────
+  static const List<Map<String, String>> _dummyAccounts = [
+    {
+      'role': 'ADMIN SISTEM',
+      'nama': 'Admin Pusat Siber',
+      'nik': 'JURI001',
+      'email': 'juri001admin@gmail.com',
+      'password': 'Admin@Siber2045',
+      'wilayah': 'MABES SATSIBER',
+      'clearance': 'Level 5 — TOP SECRET',
+      'colorHex': 'red',
+    },
+    {
+      'role': 'PANGLIMA WILAYAH',
+      'nama': 'Pangdam Jaya',
+      'nik': 'JURI002',
+      'email': 'juri002@gmail.com',
+      'password': 'Jenderal@Siber2045',
+      'wilayah': 'Kodam Jaya',
+      'clearance': 'Level 4 — SECRET',
+      'colorHex': 'gold',
+    },
+    {
+      'role': 'KOMANDAN SATSIBER',
+      'nama': 'Komandan Satsiber',
+      'nik': 'JURI003',
+      'email': 'juri003@gmail.com',
+      'password': 'Komandan@Siber2045',
+      'wilayah': 'SATSIBER TNI AD',
+      'clearance': 'Level 3 — CONFIDENTIAL',
+      'colorHex': 'cyan',
+    },
+    {
+      'role': 'OPERATOR (PENDING)',
+      'nama': 'Operator Lapangan',
+      'nik': 'JURI004',
+      'email': 'juri004@gmail.com',
+      'password': 'Operator@Siber2045',
+      'wilayah': 'Kodam Jaya',
+      'clearance': 'Level 1 — PENDING',
+      'colorHex': 'grey',
+    },
+  ];
+
+  void _fillDummyCredentials({required String email, required String password, required String nama}) {
     setState(() {
-      _nikController.text = 'NAZARUL QUDRI';
-      _passController.text = 'NAZARULQUDRI';
+      _nikController.text = email;
+      _passController.text = password;
     });
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
@@ -61,7 +105,7 @@ class _LoginViewState extends State<LoginView>
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Data dummy Komandan NAZARUL QUDRI telah diisi otomatis.',
+                'Data dummy $nama telah diisi otomatis.',
                 style: GoogleFonts.exo2(fontWeight: FontWeight.w600, fontSize: 13),
               ),
             ),
@@ -134,7 +178,10 @@ class _LoginViewState extends State<LoginView>
 
     // Check dummy credentials (Fallback demo)
     final isAuthorized = (inputUser == 'NAZARULQUDRI' && inputPass == 'NAZARULQUDRI') ||
-        (inputUser == 'ADMIN' && inputPass == 'ADMIN123');
+        (inputUser == 'ADMIN' && inputPass == 'ADMIN123') ||
+        _dummyAccounts.any((acc) =>
+            (rawUser == acc['email'] || inputUser == acc['nik']) &&
+            inputPass == acc['password']);
 
     if (!isAuthorized) {
       setState(() => _loading = false);
@@ -147,7 +194,7 @@ class _LoginViewState extends State<LoginView>
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'AKSES DITOLAK! Gunakan Data Dummy: NAZARUL QUDRI / NAZARULQUDRI',
+                  'AKSES DITOLAK! Gunakan salah satu akun demo dari panel di atas (ISI OTOMATIS)',
                   style: GoogleFonts.exo2(fontWeight: FontWeight.w700, fontSize: 13),
                 ),
               ),
@@ -352,62 +399,139 @@ class _LoginViewState extends State<LoginView>
   Widget _buildQuickFillBanner() {
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.cyberCyan.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.cyberCyan.withValues(alpha: 0.35)),
+        color: AppColors.cyberCyan.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.cyberCyan.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  color: AppColors.cyberCyan.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.people_alt_rounded, color: AppColors.cyberCyan, size: 16),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'AKUN DEMO — UNTUK JURI & REVIEWER',
+                style: GoogleFonts.orbitron(
+                  fontSize: 9, fontWeight: FontWeight.w900,
+                  color: AppColors.textPrimary, letterSpacing: 1,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ..._dummyAccounts.map((acc) => _buildDummyAccountCard(acc)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDummyAccountCard(Map<String, String> acc) {
+    final colorHex = acc['colorHex']!;
+    Color roleColor;
+    IconData roleIcon;
+    switch (colorHex) {
+      case 'red':
+        roleColor = AppColors.merahIndonesia;
+        roleIcon = Icons.admin_panel_settings_rounded;
+        break;
+      case 'gold':
+        roleColor = AppColors.goldInsignia;
+        roleIcon = Icons.military_tech_rounded;
+        break;
+      case 'cyan':
+        roleColor = AppColors.cyberCyan;
+        roleIcon = Icons.shield_rounded;
+        break;
+      default:
+        roleColor = AppColors.textMuted;
+        roleIcon = Icons.person_rounded;
+    }
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: roleColor.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: roleColor.withValues(alpha: 0.25)),
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(6),
+            padding: const EdgeInsets.all(5),
             decoration: BoxDecoration(
-              color: AppColors.cyberCyan.withValues(alpha: 0.2),
-              shape: BoxShape.circle,
+              color: roleColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(7),
             ),
-            child: const Icon(Icons.fingerprint, color: AppColors.cyberCyan, size: 20),
+            child: Icon(roleIcon, color: roleColor, size: 16),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  'AKUN DUMMY LOGIN:',
-                  style: GoogleFonts.orbitron(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary,
-                    letterSpacing: 1,
-                  ),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: roleColor.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        acc['role']!,
+                        style: GoogleFonts.orbitron(
+                          fontSize: 7.5, fontWeight: FontWeight.w900,
+                          color: roleColor, letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      acc['clearance']!,
+                      style: GoogleFonts.shareTechMono(fontSize: 7.5, color: AppColors.textMuted),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'User: NAZARUL QUDRI\nSandi: NAZARULQUDRI',
-                  style: GoogleFonts.shareTechMono(
-                    fontSize: 10.5,
-                    color: AppColors.tniGreenDark,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  '${acc['nama']!}  •  ${acc['wilayah']!}',
+                  style: GoogleFonts.exo2(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                ),
+                Text(
+                  '📧 ${acc['email']!}  🔑 ${acc['password']!}',
+                  style: GoogleFonts.shareTechMono(fontSize: 9, color: AppColors.tniGreenDark),
                 ),
               ],
             ),
           ),
           ElevatedButton(
-            onPressed: _fillDummyCredentials,
+            onPressed: () => _fillDummyCredentials(
+              email: acc['email']!,
+              password: acc['password']!,
+              nama: acc['nama']!,
+            ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.merahIndonesia,
+              backgroundColor: roleColor,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
             ),
             child: Text(
-              'ISI OTOMATIS',
-              style: GoogleFonts.orbitron(fontSize: 9.5, fontWeight: FontWeight.w800),
+              'ISI\nOTOMATIS',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.orbitron(fontSize: 7.5, fontWeight: FontWeight.w900, height: 1.3),
             ),
           ),
         ],
