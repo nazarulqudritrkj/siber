@@ -135,6 +135,14 @@ class _LoginViewState extends State<LoginView>
       );
 
       if (res['success'] == true) {
+        // Cari nama akun dari daftar dummy berdasarkan email/NIK yang diinput
+        final matchedAcc = _dummyAccounts.firstWhere(
+          (acc) => rawUser == acc['email'] || inputUser == acc['nik'],
+          orElse: () => {'nama': rawUser, 'role': 'OPERATOR'},
+        );
+        final loginNama = matchedAcc['nama'] ?? rawUser;
+        final loginRole = matchedAcc['role'] ?? 'OPERATOR';
+
         if (!mounted) return;
         setState(() => _loading = false);
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -146,7 +154,7 @@ class _LoginViewState extends State<LoginView>
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'AKSES KOMANDO DITERIMA: Otentikasi Supabase & Blockchain Validated!',
+                    'AKSES KOMANDO DITERIMA: Selamat Bertugas, $loginRole — $loginNama!',
                     style: GoogleFonts.exo2(fontWeight: FontWeight.w700, fontSize: 13),
                   ),
                 ),
@@ -176,14 +184,15 @@ class _LoginViewState extends State<LoginView>
     await Future.delayed(const Duration(milliseconds: 800));
     if (!mounted) return;
 
-    // Check dummy credentials (Fallback demo)
-    final isAuthorized = (inputUser == 'NAZARULQUDRI' && inputPass == 'NAZARULQUDRI') ||
-        (inputUser == 'ADMIN' && inputPass == 'ADMIN123') ||
-        _dummyAccounts.any((acc) =>
-            (rawUser == acc['email'] || inputUser == acc['nik']) &&
-            inputPass == acc['password']);
+    // Cari akun dummy yang cocok berdasarkan email atau NIK
+    final matchedAccount = _dummyAccounts.firstWhere(
+      (acc) =>
+          (rawUser == acc['email'] || inputUser == acc['nik']!) &&
+          inputPass == acc['password'],
+      orElse: () => {},
+    );
 
-    if (!isAuthorized) {
+    if (matchedAccount.isEmpty) {
       setState(() => _loading = false);
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -208,6 +217,9 @@ class _LoginViewState extends State<LoginView>
       return;
     }
 
+    final loginNama = matchedAccount['nama'] ?? 'Personel';
+    final loginRole = matchedAccount['role'] ?? '';
+
     setState(() => _loading = false);
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
@@ -218,7 +230,7 @@ class _LoginViewState extends State<LoginView>
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                'AKSES KOMANDO DITERIMA: Selamat Bertugas, Komandan NAZARUL QUDRI!',
+                'AKSES KOMANDO DITERIMA: Selamat Bertugas, $loginRole — $loginNama!',
                 style: GoogleFonts.exo2(fontWeight: FontWeight.w700, fontSize: 13),
               ),
             ),
@@ -547,7 +559,7 @@ class _LoginViewState extends State<LoginView>
       decoration: const InputDecoration(
         labelText: 'Email Dinas / NIK / Nama Pengguna',
         prefixIcon: Icon(Icons.badge_outlined, color: AppColors.cyberCyan),
-        hintText: 'Contoh: nazar@gmail.com atau NAZARUL QUDRI',
+        hintText: 'Contoh: juri001admin@gmail.com atau JURI001',
       ),
       validator: (v) => (v == null || v.trim().isEmpty) ? 'Email atau NIK tidak boleh kosong' : null,
     );
@@ -566,7 +578,7 @@ class _LoginViewState extends State<LoginView>
               color: AppColors.textMuted),
           onPressed: () => setState(() => _obscure = !_obscure),
         ),
-        hintText: 'Contoh: NAZARULQUDRI',
+        hintText: 'Contoh: Admin@Siber2045',
       ),
       validator: (v) => (v == null || v.isEmpty) ? 'Kata sandi tidak boleh kosong' : null,
     );
