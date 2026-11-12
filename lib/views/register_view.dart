@@ -6,6 +6,7 @@ import '../core/theme/app_colors.dart';
 import '../core/constants/app_constants.dart';
 import '../core/config/supabase_config.dart';
 import '../core/services/auth_blockchain_service.dart';
+import 'login_view.dart';
 
 class RegisterView extends StatefulWidget {
   const RegisterView({super.key});
@@ -360,29 +361,48 @@ class _RegisterViewState extends State<RegisterView>
             )),
         const SizedBox(height: 12),
         Text(
-          'Akun Anda sedang diverifikasi oleh SATSIBER TNI AD.\nAnda akan menerima konfirmasi melalui email dinas.',
+          'Akun personel Anda telah aktif dan tervalidasi secara kriptografis pada Blockchain Ledger SATSIBER TNI AD.\nSilakan masuk untuk mengakses Pusat Komando.',
           textAlign: TextAlign.center,
           style: GoogleFonts.exo2(fontSize: 13, color: AppColors.textSecondary, height: 1.7),
         ),
-        const SizedBox(height: 28),
+        const SizedBox(height: 24),
         SizedBox(
-          width: double.infinity, height: 52,
+          width: double.infinity, height: 50,
           child: DecoratedBox(
             decoration: BoxDecoration(
-              gradient: AppColors.redGradient,
+              gradient: AppColors.greenGradient,
               borderRadius: BorderRadius.circular(12),
-              boxShadow: [BoxShadow(color: AppColors.merahIndonesia.withValues(alpha: 0.35), blurRadius: 16, offset: const Offset(0, 6))],
+              boxShadow: [BoxShadow(color: AppColors.tniGreenAccent.withValues(alpha: 0.35), blurRadius: 16, offset: const Offset(0, 6))],
             ),
             child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.transparent, shadowColor: Colors.transparent,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              onPressed: () => Navigator.popUntil(context, (r) => r.isFirst),
-              icon: const Icon(Icons.home_rounded, color: Colors.white, size: 20),
-              label: Text('KEMBALI KE BERANDA',
+              onPressed: () {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginView()),
+                );
+              },
+              icon: const Icon(Icons.login_rounded, color: Colors.white, size: 20),
+              label: Text('MASUK SEKARANG (LOGIN)',
                   style: GoogleFonts.orbitron(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 1.5)),
             ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity, height: 46,
+          child: OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: AppColors.merahIndonesia.withValues(alpha: 0.7), width: 1.5),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () => Navigator.popUntil(context, (r) => r.isFirst),
+            icon: Icon(Icons.home_rounded, color: AppColors.merahIndonesia, size: 18),
+            label: Text('KEMBALI KE BERANDA',
+                style: GoogleFonts.orbitron(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.merahIndonesia, letterSpacing: 1.2)),
           ),
         ),
         const SizedBox(height: 28),

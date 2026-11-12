@@ -421,11 +421,11 @@ class _LoginViewState extends State<LoginView>
       keyboardType: TextInputType.text,
       style: GoogleFonts.exo2(fontSize: 14, color: AppColors.textPrimary),
       decoration: const InputDecoration(
-        labelText: 'Nama Pengguna / NIK / ID Personel',
+        labelText: 'Email Dinas / NIK / Nama Pengguna',
         prefixIcon: Icon(Icons.badge_outlined, color: AppColors.cyberCyan),
-        hintText: 'Contoh: NAZARUL QUDRI',
+        hintText: 'Contoh: nazar@gmail.com atau NAZARUL QUDRI',
       ),
-      validator: (v) => (v == null || v.trim().isEmpty) ? 'Username atau NIK tidak boleh kosong' : null,
+      validator: (v) => (v == null || v.trim().isEmpty) ? 'Email atau NIK tidak boleh kosong' : null,
     );
   }
 
